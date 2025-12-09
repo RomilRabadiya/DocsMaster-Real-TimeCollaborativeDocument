@@ -1,0 +1,697 @@
+change the DocumentModal style and placement like google doc:
+
+
+
+import { useState, useEffect, useMemo } from "react";
+import Button from "../common/Buttons";
+import ParticipantsManager from "../collaboration/ParticipantsManager";
+import "./css/DocumentModal.css";
+import socket from "../../socket";
+
+const DocumentModal = ({
+  document,
+  onClose,
+  onEdit,
+  onDelete,
+  onShare,
+  shareCode,
+  copyToClipboard,
+  setShowEditModal,
+  onParticipantsUpdated,
+  selectedDocument,
+  setSelectedDocument,
+}) => {
+  const [localDocument, setLocalDocument] = useState(document);
+  const [currentUserRole, setCurrentUserRole] = useState("reader");
+
+  // 🔹 Read current user from localStorage
+  let rawUser = null;
+  try {
+    rawUser = localStorage.getItem("user");
+  } catch (e) {
+    rawUser = null;
+  }
+  const currentUser = rawUser ? JSON.parse(rawUser) : null;
+  const currentUserId = currentUser?.id || currentUser?._id;
+
+  // 🔹 Determine owner
+  const ownerId = document?.user?._id || document?.user;
+  const isOwner =
+    ownerId && currentUserId && ownerId.toString() === currentUserId.toString();
+
+  // 🔹 Compute role from current state
+  const computeUserRole = (documentData) => {
+    if (!documentData) return "reader";
+    if (isOwner) return "owner";
+
+    const collab = (documentData?.collaborators || []).find((c) => {
+      const id = c._id || c.user?._id || c.user;
+      return id && currentUserId && id.toString() === currentUserId.toString();
+    });
+
+    return collab ? collab.role || "editor" : "reader";
+  };
+
+  // 🔹 Update role whenever document changes
+  useEffect(() => {
+    setCurrentUserRole(computeUserRole(document));
+  }, [document, currentUserId, isOwner]);
+
+  // 🔹 Permissions
+  const canEdit = currentUserRole === "owner" || currentUserRole === "editor";
+  const canManageParticipants = isOwner;
+  const canDelete = isOwner;
+  const canShare = isOwner;
+
+  // 🔹 Handle edit
+  const handleEditClick = () => {
+    if (!canEdit) return alert("You don't have permission to edit this document.");
+    onEdit(localDocument);
+    onClose();
+    setShowEditModal(true);
+  };
+
+  // 🔹 Handle delete
+  const handleDeleteClick = () => {
+    if (!canDelete) return alert("Only the owner can delete this document.");
+    if (window.confirm("Delete this document?")) {
+      onDelete(localDocument._id);
+      onClose();
+    }
+  };
+
+  // 🔹 Handle share
+  const handleShareClick = () => {
+    if (!canShare) return alert("Only the owner can share this document.");
+    onShare(localDocument._id);
+  };
+
+  // 🔹 Handle current user removed
+  const handleCurrentUserRemoved = () => {
+    setLocalDocument(null);
+    onClose();
+  };
+
+  // 🔹 Handle participants change
+  const handleParticipantsChange = (updatedParticipants) => {
+    setLocalDocument((prev) => ({ ...prev, collaborators: updatedParticipants }));
+    setCurrentUserRole(computeUserRole({ ...localDocument, collaborators: updatedParticipants }));
+    if (onParticipantsUpdated) onParticipantsUpdated(updatedParticipants);
+  };
+
+  // 🔹 Keep localDocument synced with parent
+  useEffect(() => {
+    setLocalDocument(document);
+  }, [document]);
+
+  
+  
+  
+  
+  
+  
+  
+  // 🔹 Socket.IO real-time updates
+  useEffect(() => {
+    if (!document?._id) return;
+
+    // Join the document room
+    socket.emit("joinDocument", document._id);
+
+    // Handle document content updates
+    const handleDocumentUpdated = (updatedDocument) => {
+      if (updatedDocument._id === document._id) {
+        setLocalDocument(updatedDocument);
+        setCurrentUserRole(computeUserRole(updatedDocument));
+        if (onParticipantsUpdated) {
+          onParticipantsUpdated(updatedDocument.collaborators || []);
+        }
+        if (selectedDocument?._id === updatedDocument._id) {
+          setSelectedDocument(updatedDocument);
+        }
+      }
+    };
+
+    // Handle document deletion
+    const handleDocumentDeleted = (deletedDocumentId) => {
+      if (deletedDocumentId === document._id) {
+        setLocalDocument(null);
+        onClose();
+      }
+      if (selectedDocument?._id === deletedDocumentId) {
+        setSelectedDocument(null);
+      }
+    };
+
+    // Handle participant changes (role updates)
+    const handleParticipantsChanged = ({ documentId, collaborators }) => {
+      if (documentId === document._id) {
+        setLocalDocument((prev) => ({ ...prev, collaborators }));
+        setCurrentUserRole(computeUserRole({ ...localDocument, collaborators }));
+        if (onParticipantsUpdated) onParticipantsUpdated(collaborators);
+      }
+      if (selectedDocument?._id === documentId) {
+        setSelectedDocument((prev) => ({ ...(prev || {}), collaborators }));
+      }
+    };
+
+    // Handle participant joined
+    const handleParticipantJoined = (payload) => {
+      if (!payload) return;
+      const nid = payload.documentId || payload._id;
+      if (nid === document._id || nid === document._id.toString()) {
+        setLocalDocument((prev) => ({
+          ...(prev || {}),
+          collaborators: payload.collaborators || prev?.collaborators || [],
+        }));
+        setCurrentUserRole(
+          computeUserRole({
+            ...localDocument,
+            collaborators: payload.collaborators || [],
+          })
+        );
+        if (onParticipantsUpdated)
+          onParticipantsUpdated(payload.collaborators || []);
+      }
+    };
+
+    // Handle sharing event
+    const handleDocumentShared = (sharedDocument) => {
+      if (sharedDocument._id === document._id) {
+        setLocalDocument(sharedDocument);
+        setCurrentUserRole(computeUserRole(sharedDocument));
+        if (selectedDocument?._id === sharedDocument._id) {
+          setSelectedDocument(sharedDocument);
+        }
+      }
+    };
+
+    // Register listeners
+    socket.on("documentUpdated", handleDocumentUpdated);
+    socket.on("documentDeleted", handleDocumentDeleted);
+    socket.on("participantsChanged", handleParticipantsChanged);
+    socket.on("participantJoined", handleParticipantJoined);
+    socket.on("documentShared", handleDocumentShared);
+
+    // Cleanup listeners
+    return () => {
+      socket.off("documentUpdated", handleDocumentUpdated);
+      socket.off("documentDeleted", handleDocumentDeleted);
+      socket.off("participantsChanged", handleParticipantsChanged);
+      socket.off("participantJoined", handleParticipantJoined);
+      socket.off("documentShared", handleDocumentShared);
+      socket.emit("leaveDocument", document._id);
+    };
+  }, [document?._id, onClose, onParticipantsUpdated, selectedDocument, setSelectedDocument]);
+
+
+
+
+
+
+  if (!localDocument) return null;
+
+  return (
+    <div className="document-modal-overlay" onClick={onClose}>
+      <div
+        className="document-modal-container"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header - Google Docs style */}
+        <div className="document-modal-header">
+          <div className="document-modal-header-left">
+            <h2 className="document-title">{localDocument.title}</h2>
+            <span
+              className={`document-badge ${
+                localDocument.isShared ? "shared" : "private"
+              }`}
+            >
+              {localDocument.isShared ? "🔗 Shared" : "🔒 Private"}
+            </span>
+          </div>
+          <div className="document-actions">
+            {canShare && (
+              <Button
+                text="Share"
+                onClick={handleShareClick}
+                style={{
+                  backgroundColor: "#1a73e8",
+                  color: "white",
+                  padding: "8px 24px",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                }}
+              />
+            )}
+            <button
+              onClick={onClose}
+              className="document-modal-close"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* Section - As document subtitle */}
+        <h4 className="document-section">{localDocument.section || "No Section"}</h4>
+
+        {/* Main content area - Google Docs paper style */}
+        <div className="document-modal-body">
+          <div className="document-content">{localDocument.content}</div>
+
+          {/* Keywords */}
+          {localDocument.keywords?.length > 0 && (
+            <div className="document-keywords-section">
+              <h4>Keywords</h4>
+              <div className="document-keywords">
+                {localDocument.keywords.map((keyword, idx) => (
+                  <span key={idx} className="document-keyword">
+                    #{keyword}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Participants */}
+          {localDocument.isShared && (
+            <div className="document-participants">
+              <h4>Participants</h4>
+              {localDocument.user && (
+                <div className="document-owner">
+                  <strong>👑 Owner:</strong>{" "}
+                  {localDocument.user.email || "Unknown"}
+                </div>
+              )}
+              <ParticipantsManager
+                documentId={localDocument._id}
+                currentUserId={currentUserId}
+                isOwner={canManageParticipants}
+                owner={localDocument.user}
+                participants={localDocument.collaborators}
+                onParticipantsChange={handleParticipantsChange}
+                onCurrentUserRemoved={handleCurrentUserRemoved}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Metadata - Google Docs style info panel */}
+        <div className="document-meta">
+          <p className="meta-line">
+            <span>Created: </span>
+            {new Date(localDocument.createdAt).toLocaleString(undefined, {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+
+          {localDocument.updatedAt && (
+            <p className="meta-line">
+              <span>Last Modified: </span>
+              {new Date(localDocument.updatedAt).toLocaleString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          )}
+
+          {localDocument.modifiedBy && (
+            <p className="meta-line">
+              <span>Modified By: </span>
+              {localDocument.modifiedBy?.email || "Unknown"}
+            </p>
+          )}
+        </div>
+
+        {/* Footer - Action buttons */}
+        <div className="document-modal-footer">
+          <div className="document-actions">
+            <Button
+              text={canEdit ? "Edit" : "View Only"}
+              onClick={handleEditClick}
+              style={{
+                backgroundColor: canEdit ? "#1a73e8" : "#9aa0a6",
+                color: "white",
+                padding: "8px 16px",
+                borderRadius: "4px",
+                fontSize: "14px",
+                fontWeight: "500",
+                cursor: canEdit ? "pointer" : "not-allowed",
+              }}
+            />
+
+            {canDelete && (
+              <Button
+                text="Delete"
+                onClick={handleDeleteClick}
+                style={{
+                  backgroundColor: "#ea4335",
+                  color: "white",
+                  padding: "8px 16px",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                }}
+              />
+            )}
+          </div>
+
+          {/* AI Action Buttons */}
+          <div className="document-ai-actions">
+            <button className="ai-button summarize" onClick={() => alert("AI Summary coming soon!")}>
+              🧠 Summarize
+            </button>
+            <button className="ai-button outline" onClick={() => alert("AI Outline coming soon!")}>
+              💡 Outline
+            </button>
+            <button className="ai-button improve" onClick={() => alert("AI Improve coming soon!")}>
+              ✨ Improve
+            </button>
+          </div>
+
+          {shareCode && (
+            <div className="document-share">
+              <span>Share Code: {shareCode}</span>
+              <Button
+                text="Copy"
+                onClick={() => copyToClipboard(shareCode)}
+                style={{
+                  backgroundColor: "#1a73e8",
+                  color: "white",
+                  padding: "6px 12px",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DocumentModal;
+
+
+
+
+
+.document-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  animation: fadeIn 0.3s ease;
+}
+
+.document-modal-container {
+  background-color: #ffffff;
+  width: 95vw;
+  height: 95vh;
+  max-width: 1200px;
+  max-height: 800px;
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideIn 0.3s ease;
+}
+
+/* Header */
+.document-modal-header {
+  padding: 24px 32px;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.document-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.document-modal-header-left h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.document-badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.document-badge.shared {
+  background-color: #dcfdf7;
+  color: #047857;
+}
+
+.document-badge.private {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.document-modal-close {
+  background-color: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+/* Section */
+.document-section {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2563eb;
+  margin: 10px 10px 8px 20px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* Body */
+.document-modal-body {
+  flex: 1;
+  padding: 32px;
+  overflow: auto;
+}
+
+.document-modal-body p {
+  font-size: 18px;
+  line-height: 1.7;
+  color: #374151;
+  white-space: pre-wrap;
+  font-family: "Inter", sans-serif;
+  margin-bottom: 24px;
+}
+
+/* Keywords */
+.document-keywords-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.document-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+
+
+
+
+/*this will be logic Of DocumentModel Display Behind the DocsBoard*/
+/*this will be logic Of DocumentModel Display Behind the DocsBoard*/
+/*this will be logic Of DocumentModel Display Behind the DocsBoard*/
+/*this will be logic Of DocumentModel Display Behind the DocsBoard*/
+
+
+/* src/components/css/DocumentModal.css (append or merge) */
+.document-modal-overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+  z-index: 9999;
+}
+
+.document-modal-container {
+  width: 95vw; max-width: 1100px; max-height: 85vh;
+  background: #fff; border-radius: 14px; overflow: auto;
+  box-shadow: 0 30px 60px rgba(2,6,23,0.35);
+  display: flex; flex-direction: column;
+}
+
+.document-modal-header {
+  padding: 20px 24px; display:flex; align-items:center; justify-content:space-between;
+  border-bottom: 1px solid #eef2f6; background: #fbfdff;
+}
+
+.document-modal-header-left { display:flex; gap:12px; align-items:center; }
+.document-badge { padding:6px 12px; border-radius:999px; font-weight:600; font-size:12px; }
+.document-badge.shared { background:#dcfdf7; color:#047857; }
+.document-badge.private { background:#dbeafe; color:#1e40af; }
+
+.document-section { margin: 12px 20px; color:#2563eb; font-weight:700; text-transform:uppercase; letter-spacing:0.2px; }
+.document-modal-body { padding: 20px 32px; flex:1; overflow:auto; color:#374151; }
+.document-keywords { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+.document-keyword { background:#f1f5f9; padding:6px 10px; border-radius:999px; font-weight:600; color:#475569; }
+
+.document-meta { padding: 12px 32px; border-top: 1px solid #eef2f6; color:#6b7280; }
+.document-modal-footer {
+  padding: 16px 24px; background:#f8fafc; border-top:1px solid #eef2f6; display:flex; justify-content:space-between; align-items:center;
+}
+.document-actions { display:flex; gap:12px; }
+
+.document-share { display:flex; gap:8px; align-items:center; }
+
+.document-content { white-space: pre-wrap; line-height: 1.6; font-size: 16px; color: #111827; }
+
+.document-ai-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.ai-button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.ai-button.summarize {
+  background-color: #6366f1;
+  color: white;
+}
+
+.ai-button.summarize:hover {
+  background-color: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+}
+
+.ai-button.outline {
+  background-color: #10b981;
+  color: white;
+}
+
+.ai-button.outline:hover {
+  background-color: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.ai-button.improve {
+  background-color: #f59e0b;
+  color: white;
+}
+
+.ai-button.improve:hover {
+  background-color: #d97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+}
+
+
+
+
+
+
+
+
+.document-modal-container {
+  background-color: #ffffff;
+  width: 95vw;
+  max-width: 1200px;
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  /* height: auto instead of fixed */
+  height: auto;
+  max-height: none;
+  overflow: visible; /* allow full content */
+}
+
+.document-modal-body {
+  flex: unset;   /* remove flex-grow shrinking */
+  padding: 32px;
+  overflow: visible; /* remove scrollbars */
+}
+
+
+
+
+
+
+.document-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;  /* modal starts from top, scrolls down */
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  overflow-y: auto;   /* ✅ allow full-page scroll */
+  padding: 40px 0;    /* space above/below modal */
+}
+
+.document-modal-container {
+  background: #ffffff;
+  width: 95vw;
+  max-width: 1200px;
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  height: auto;       /* ✅ grow with content */
+  max-height: none;   /* remove fixed cap */
+  overflow: visible;
+}
+
+.document-modal-body {
+  padding: 32px;
+  overflow: visible;  /* ✅ no inner scrollbar */
+  flex: unset;
+}

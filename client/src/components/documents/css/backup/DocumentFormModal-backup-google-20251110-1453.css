@@ -1,0 +1,229 @@
+/* Overlay */
+.document-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(10px);
+  animation: fadeIn 0.3s ease;
+}
+
+/* Container */
+.document-modal-container {
+  background: #ffffff;
+  width: 90vw;
+  max-width: 900px;
+  height: 90vh;
+  max-height: 700px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: slideUp 0.4s ease;
+}
+
+/* Header */
+.document-modal-header {
+  padding: 20px 28px;
+  background: linear-gradient(to right, #f8fafc, #f1f5f9);
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.document-modal-header h2 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.document-modal-close {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  font-size: 22px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.document-modal-close:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+/* Content */
+.document-modal-content {
+  flex: 1;
+  padding: 28px;
+  overflow-y: auto;
+}
+
+/* Form Grid Layout */
+.document-modal-content form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 24px;
+}
+
+.document-form-group {
+  display: flex;
+  flex-direction: column;
+  grid-column: span 1;
+}
+
+.document-form-group.full-width {
+  grid-column: span 2;
+}
+
+/* Labels */
+.document-modal-label {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+/* Text Inputs */
+input[type="text"],
+.document-modal-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 2px solid #e5e7eb;
+  font-size: 16px;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+input[type="text"]:focus,
+.document-modal-textarea:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+  outline: none;
+}
+
+.document-modal-textarea {
+  resize: vertical;
+  min-height: 150px;
+  line-height: 1.5;
+  font-family: inherit;
+  grid-column: span 2;
+}
+
+/* Undo / Redo */
+.document-history-actions {
+  grid-column: span 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.document-undo,
+.document-redo {
+  color: white;
+  padding: 10px 18px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.document-undo {
+  background-color: #6b7280;
+}
+
+.document-redo {
+  background-color: #6b7280;
+}
+
+.document-undo:hover:not(:disabled),
+.document-redo:hover:not(:disabled) {
+  background-color: #4b5563;
+}
+
+/* Keywords */
+.document-keywords-container {
+  grid-column: span 2;
+  margin-top: 10px;
+}
+
+.document-keyword-input-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.document-keyword-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.document-keyword {
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.document-keyword:hover {
+  background: #bae6fd;
+}
+
+.document-keyword button {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Footer */
+.document-form-actions {
+  grid-column: span 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(25px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Scrollbar Styling */
+.document-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+.document-modal-content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.document-modal-content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

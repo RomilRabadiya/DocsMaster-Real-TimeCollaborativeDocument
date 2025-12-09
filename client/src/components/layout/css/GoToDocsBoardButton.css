@@ -1,0 +1,59 @@
+.documentsboard-link {
+  text-decoration: none;
+}
+
+.documentsboard-card {
+  cursor: pointer;
+  position: relative;
+  width: 100%;
+  max-width: 350px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease-in-out;
+  text-align: center;
+}
+
+.documentsboard-card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  background: #f3f4f6;
+}
+
+.documentsboard-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.documentsboard-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 6px;
+}
+
+.documentsboard-subtitle {
+  font-size: 14px;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.documentsboard-cta {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);
+  transition: all 0.3s ease;
+}
+
+.documentsboard-card:hover .documentsboard-cta {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+}

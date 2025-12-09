@@ -1,0 +1,15 @@
+/* GoToNotesBoardButton.css */
+.go-to-notes-board-button {
+  padding: 10px 20px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.go-to-notes-board-button:hover {
+  background-color: #2563eb;
+}

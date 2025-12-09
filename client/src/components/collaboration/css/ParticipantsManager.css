@@ -1,0 +1,84 @@
+.participants-manager {
+  margin-top: 10px;
+  padding: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+.socket-status {
+  margin-bottom: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  display: flex;
+  justify-content: center;
+}
+
+.status-indicator {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-indicator.connected {
+  color: #059669;
+}
+
+.status-indicator.disconnected {
+  color: #dc2626;
+}
+
+.participant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.participant {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.participant:hover {
+  background: #f3f4f6;
+}
+
+.participant.owner {
+  background: #fff7ed;
+  border-left: 4px solid #f59e0b;
+}
+
+.participant-label {
+  font-size: 14px;
+  color: #374151;
+}
+
+.role-badge {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.role-badge.editor {
+  background: #3b82f6;
+  color: white;
+}
+
+.role-badge.reader {
+  background: #10b981;
+  color: white;
+}
+
+.participant-actions {
+  display: flex;
+  gap: 6px;
+}

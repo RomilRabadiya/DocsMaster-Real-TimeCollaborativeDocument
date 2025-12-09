@@ -1,0 +1,444 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import NoteFormModal from "../components/NoteFormModal";
+import NoteCard from "../components/NoteCard";
+import NoteModal from "../components/NoteModal";
+import Navbar from "../components/Navbar";
+import CreateNoteButton from "../components/CreateNoteButton";
+import JoinNote from "../components/JoinNote";
+import SortFilter from "../components/SortFilter";
+import {
+  getNotes,
+  createNote,
+  updateNote,
+  deleteNote,
+  shareNote,
+  getSharedNote,
+  joinSharedNote,
+  updateSelectionTime,
+} from "../api/noteApis";
+
+function NotesBoard() {
+  const navigate = useNavigate();
+  const [notes, setNotes] = useState([]);
+
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [tags, setTags] = useState([]);
+  const [subject, setSubject] = useState("");
+  const [tagInput, setTagInput] = useState("");
+
+  const [editingNote, setEditingNote] = useState(null);
+  const [shareCodes, setShareCodes] = useState({});
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [createdNote, setCreatedNote] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [shareCodeInput, setShareCodeInput] = useState("");
+  const [sharedNotePreview, setSharedNotePreview] = useState(null);
+
+  const [sortOption, setSortOption] = useState("recent"); // default
+  const [sortOrder, setSortOrder] = useState("desc"); // default
+
+  // --- get user ---
+  const getCurrentUser = () => {
+    try {
+      const userStr = localStorage.getItem("user");
+      return userStr ? JSON.parse(userStr) : null;
+    } catch (error) {
+      console.error("Error parsing user from localStorage:", error);
+      return null;
+    }
+  };
+  const currentUser = getCurrentUser();
+
+  // --- sorting function ---
+  const handleFilterChange = (option, notesList, order) => {
+    let sorted = [...notesList];
+    const multiplier = order === "asc" ? 1 : -1;
+
+    if (option === "title") {
+      sorted.sort((a, b) => a.title.localeCompare(b.title) * multiplier);
+    } else if (option === "createdAt") {
+      sorted.sort(
+        (a, b) => (new Date(a.createdAt) - new Date(b.createdAt)) * multiplier
+      );
+    } else if (option === "updatedAt") {
+      sorted.sort(
+        (a, b) => (new Date(a.updatedAt) - new Date(b.updatedAt)) * multiplier
+      );
+    } else if (option === "recent") {
+      sorted.sort(
+        (a, b) =>
+          (new Date(a.selectionTime || a.updatedAt || a.createdAt || 0) -
+            new Date(b.selectionTime || b.updatedAt || b.createdAt || 0)) *
+          multiplier
+      );
+    }
+    return sorted;
+  };
+
+  // --- fetch notes ---
+  const fetchNotes = async () => {
+    try {
+      const res = await getNotes();
+      const sorted = handleFilterChange(sortOption, res.data, sortOrder);
+      setNotes(sorted);
+    } catch (error) {
+      alert("Error fetching notes");
+    }
+  };
+
+  // initial load
+  useEffect(() => {
+    setSortOption("recent");
+    setSortOrder("desc");
+    fetchNotes();
+  }, []);
+
+  // re-sort when sortOption/order changes
+  useEffect(() => {
+    setNotes((prev) => handleFilterChange(sortOption, prev, sortOrder));
+  }, [sortOption, sortOrder]);
+
+  // --- logout ---
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
+  // --- create / update note ---
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const noteData = { title, subject, content, tags };
+      if (editingNote) {
+        await updateNote(editingNote._id, noteData);
+        alert("Note updated!");
+      } else {
+        await createNote(noteData);
+        alert("Note created!");
+      }
+
+      setTitle("");
+      setSubject("");
+      setContent("");
+      setTags([]);
+      setTagInput("");
+      setEditingNote(null);
+      fetchNotes();
+    } catch (error) {
+      alert("Error saving note");
+      console.error(error.response?.data || error.message);
+    }
+  };
+
+  // --- delete ---
+  const handleDelete = async (id) => {
+    if (window.confirm("Delete this note?")) {
+      try {
+        const res = await deleteNote(id);
+        alert(res.data.message);
+        fetchNotes();
+      } catch (error) {
+        alert(error.response?.data?.message || "Error deleting note");
+      }
+    }
+  };
+
+  // --- edit ---
+  const handleEdit = (note) => {
+    setEditingNote(note);
+    setTitle(note.title);
+    setContent(note.content);
+    setTags(note.tags || []);
+    setSubject(note.subject || "");
+    setShowEditModal(true);
+  };
+
+  // --- share ---
+  const handleShare = async (id) => {
+    try {
+      const note = notes.find((n) => n._id === id);
+      if (!note || !currentUser) {
+        return alert("❌ Unable to verify note ownership");
+      }
+      const ownerId = note.user?._id || note.user;
+      const currentUserId = currentUser.id || currentUser._id;
+      if (ownerId !== currentUserId) {
+        return alert("❌ Only the owner can share this note");
+      }
+      const res = await shareNote(id);
+      const code = res.data.shareCode;
+      setShareCodes((prev) => ({ ...prev, [id]: code }));
+      setNotes((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, isShared: true } : n))
+      );
+    } catch (error) {
+      console.error(error);
+      alert("Error sharing note");
+    }
+  };
+
+  const copyToClipboard = (code) => {
+    navigator.clipboard
+      .writeText(code)
+      .then(() => alert("📋 Code copied: " + code))
+      .catch(() => alert("Failed to copy code"));
+  };
+
+  // --- tags ---
+  const addTag = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput("");
+    }
+  };
+  const removeTag = (tag) => setTags(tags.filter((t) => t !== tag));
+
+  // --- join shared note ---
+  const handleJoinNote = async () => {
+    if (!shareCodeInput || shareCodeInput.length < 10) {
+      return alert("Enter a valid share code!");
+    }
+    try {
+      const preview = await getSharedNote(shareCodeInput);
+      setSharedNotePreview(preview.data);
+
+      setTimeout(async () => {
+        try {
+          await joinSharedNote(shareCodeInput);
+          await fetchNotes();
+          setSharedNotePreview(null);
+          setShareCodeInput("");
+        } catch (err) {
+          console.error(err);
+          alert("❌ Failed to join shared note");
+        }
+      }, 3000);
+    } catch (error) {
+      console.error(error);
+      alert("❌ Invalid or expired share code");
+    }
+  };
+
+  // --- history undo/redo ---
+  const [history, setHistory] = useState([""]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+
+  const handleContentChange = (e) => {
+    const value = e.target.value;
+    setContent(value);
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(value);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setContent(history[newIndex]);
+    }
+  };
+  const handleRedo = () => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setContent(history[newIndex]);
+    }
+  };
+
+  // --- save ---
+  const handleSave = () => {
+    console.log("Saving note:", { title, content });
+  };
+
+  // --- note click handler ---
+  const handleNoteClick = async (note) => {
+    try {
+      await updateSelectionTime(note._id);
+      // update locally without refetch
+      setNotes((prev) =>
+        handleFilterChange(
+          sortOption,
+          prev.map((n) =>
+            n._id === note._id
+              ? { ...n, selectionTime: new Date().toISOString() }
+              : n
+          ),
+          sortOrder
+        )
+      );
+      setSelectedNote(note);
+    } catch (err) {
+      console.error("Failed to update selectionTime", err);
+      setSelectedNote(note);
+    }
+  };
+
+
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // --- filter notes by search
+  const filteredNotes = notes.filter((note) =>
+    note.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div style={{ padding: "20px" }}>
+      <Navbar onLogout={handleLogout} />
+      <br />
+
+      <CreateNoteButton onClick={() => setCreatedNote(true)} />
+
+      {/* Create Note Modal */}
+      <NoteFormModal
+        isOpen={createdNote}
+        onClose={() => setCreatedNote(false)}
+        onSubmit={(e) => {
+          handleSubmit(e);
+          setCreatedNote(false);
+        }}
+        mode="create"
+        title={title}
+        setTitle={setTitle}
+        content={content}
+        setContent={setContent}
+        subject={subject}
+        setSubject={setSubject}
+        handleContentChange={handleContentChange}
+        tagInput={tagInput}
+        setTagInput={setTagInput}
+        tags={tags}
+        addTag={addTag}
+        removeTag={removeTag}
+        handleUndo={handleUndo}
+        handleRedo={handleRedo}
+        historyIndex={historyIndex}
+        history={history}
+      />
+
+      {/* Edit Note Modal */}
+      <NoteFormModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onSubmit={(e) => {
+          handleSubmit(e);
+          setShowEditModal(false);
+        }}
+        mode="edit"
+        title={title}
+        setTitle={setTitle}
+        content={content}
+        setContent={setContent}
+        subject={subject}
+        setSubject={setSubject}
+        handleContentChange={handleContentChange}
+        tagInput={tagInput}
+        setTagInput={setTagInput}
+        tags={tags}
+        addTag={addTag}
+        removeTag={removeTag}
+        handleUndo={handleUndo}
+        handleRedo={handleRedo}
+        historyIndex={historyIndex}
+        history={history}
+      />
+
+      <hr />
+
+      <JoinNote
+        shareCodeInput={shareCodeInput}
+        setShareCodeInput={setShareCodeInput}
+        handleJoinNote={handleJoinNote}
+        sharedNotePreview={sharedNotePreview}
+      />
+
+      <hr />
+
+      {/* SortFilter */}
+      <SortFilter
+        sortOption={sortOption}
+        setSortOption={setSortOption}
+        sortOrder={sortOrder}
+        setSortOrder={setSortOrder}
+      />
+
+      {/* 🔍 Search Bar */}
+      <div style={{ margin: "20px 0", textAlign: "center" }}>
+        <input
+          type="text"
+          placeholder="Search notes by title..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            padding: "10px 14px",
+            width: "60%",
+            borderRadius: "8px",
+            border: "1px solid #ccc",
+            fontSize: "16px",
+          }}
+        />
+      </div>
+
+      {/* Notes list */}
+      <div style={{ padding: "24px" }}>
+        <h2
+          style={{
+            fontSize: "24px",
+            fontWeight: "bold",
+            marginBottom: "16px",
+            color: "#1f2937",
+          }}
+        >
+          My Notes
+        </h2>
+
+        <div
+          style={{
+            display: "grid",
+            gap: "16px",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          }}
+        >
+          {notes.length > 0 ? (
+            notes.map((note) => (
+              <NoteCard
+                key={note._id}
+                note={note}
+                onClick={() => handleNoteClick(note)}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onShare={handleShare}
+                shareCode={shareCodes[note._id]}
+                copyToClipboard={copyToClipboard}
+              />
+            ))
+          ) : (
+            <p style={{ textAlign: "center", color: "#6b7280" }}>
+              No notes yet
+            </p>
+          )}
+        </div>
+
+        {selectedNote && (
+          <NoteModal
+            note={selectedNote}
+            onClose={() => setSelectedNote(null)}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onShare={handleShare}
+            shareCode={shareCodes[selectedNote._id]}
+            copyToClipboard={copyToClipboard}
+            setShowEditModal={setShowEditModal}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default NotesBoard;
