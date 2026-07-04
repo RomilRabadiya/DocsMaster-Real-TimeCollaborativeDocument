@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
+const URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:8082";
 
 // Initialize a single shared Socket.IO client
 const socket = io(URL, {

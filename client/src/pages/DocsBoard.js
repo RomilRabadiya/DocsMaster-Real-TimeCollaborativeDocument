@@ -80,6 +80,11 @@ function DocsBoard() {
     //get current user from local storage
     const currentUser = JSON.parse(localStorage.getItem("user"));
     const currentUserId = currentUser?._id || currentUser?.id;
+    
+    // Join a personal room to receive user-specific events (e.g. being removed from a document)
+    if (currentUserId) {
+      socket.emit("joinUserRoom", currentUserId);
+    }
 
     //Call when document is created in documentController.js file And add that new document to documents list if current user is owner or collaborator
     const handleNoteCreated = (newDocument) => {
@@ -243,10 +248,24 @@ function DocsBoard() {
 
     //In populated we send updated document data from server to client
       
+    // Handle real-time content changes (live text editing)
+    const handleReceiveChanges = (payload) => {
+      if (!payload) return;
+      const { documentId, content: newContent, senderId } = payload;
+      // Ignore if this client sent the changes
+      if (senderId === socket.id) return;
+      
+      // Update content if we are currently editing THIS document
+      if (editingDocument && editingDocument._id === documentId) {
+        setContent(newContent);
+      }
+    };
+
     socket.on("documentCreated", handleNoteCreated);
     socket.on("documentUpdated", handleNoteUpdated);
     socket.on("documentDeleted", handleNoteDeleted);
     socket.on("participantsChanged", handleParticipantsChanged);
+    socket.on("receive-changes", handleReceiveChanges);
 
     // ✅ Cleanup on unmount
     return () => {
@@ -254,8 +273,10 @@ function DocsBoard() {
       socket.off("documentUpdated", handleNoteUpdated);
       socket.off("documentDeleted", handleNoteDeleted);
       socket.off("participantsChanged", handleParticipantsChanged);
+      socket.off("receive-changes", handleReceiveChanges);
     };
-  }, [sortOption, sortOrder, selectedDocument]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortOption, sortOrder, selectedDocument, editingDocument]);
 
 
 
@@ -271,17 +292,18 @@ function DocsBoard() {
     setSortOption("recent");
     setSortOrder("desc");
     fetchDocuments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     setDocuments((prev) => handleFilterChange(sortOption, prev, sortOrder));
   }, [sortOption, sortOrder]);
 
-  // Refetch documents whenever modal closes OR participants updated
   useEffect(() => {
     if (!selectedDocument) {
       fetchDocuments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDocument]);
 
 
@@ -453,7 +475,7 @@ function DocsBoard() {
   //This function is use in JoinDocument component when we click on join document button
   const handleJoinDocument = async () =>
   {
-    if (!shareCodeInput || shareCodeInput.length < 10) {
+    if (!shareCodeInput || shareCodeInput.length < 8) {
       return alert("Enter a valid share code!");
     }
     try {
@@ -619,7 +641,10 @@ function DocsBoard() {
       {/* Edit Document Modal */}
       <NoteFormModal
         isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingDocument(null);
+        }}
         onSubmit={(e) => {
           handleSubmit(e);
           setShowEditModal(false);
@@ -641,6 +666,8 @@ function DocsBoard() {
         handleRedo={handleRedo}
         historyIndex={historyIndex}
         history={history}
+        socket={socket}
+        documentId={editingDocument?._id}
       />
 
       <hr />

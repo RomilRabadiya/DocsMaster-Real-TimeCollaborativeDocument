@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from "react";
-import InputField from "../common/InputFields";
 import Button from "../common/Buttons";
 import "./css/DocumentFormModal.css";
 
@@ -25,6 +24,8 @@ const DocumentFormModal = ({
   handleRedo,
   historyIndex,
   history,
+  socket,
+  documentId,
 }) => {
 
   // Pagination State and Refs
@@ -62,6 +63,20 @@ const DocumentFormModal = ({
 
   // Get content for current page
 
+  useEffect(() => {
+    if (isOpen && mode === "edit" && socket && documentId) {
+      // Delay to prevent race condition with DocumentModal's cleanup leaveDocument
+      const timer = setTimeout(() => {
+        socket.emit("joinDocument", documentId);
+      }, 200);
+      
+      return () => {
+        clearTimeout(timer);
+        socket.emit("leaveDocument", documentId);
+      };
+    }
+  }, [isOpen, mode, socket, documentId]);
+
   // Extract content for the current page Logic : 
               // For Example If currentPage=2 And CHARACTERS_PER_PAGE=2000
               // Then startIndex=2000 and endIndex=4000
@@ -87,6 +102,11 @@ const DocumentFormModal = ({
     setContent(newFullContent);
     e.target.style.height = 'auto';
     e.target.style.height = `${e.target.scrollHeight}px`;
+    
+    // Live update emission
+    if (mode === "edit" && socket && documentId) {
+      socket.emit("send-changes", { documentId, content: newFullContent });
+    }
   };
   
   // Navigate to specific page

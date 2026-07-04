@@ -217,12 +217,22 @@ const DocumentModal = ({
       }
     };
 
+    // Handle real-time content changes from typing (receive-changes)
+    const handleReceiveChanges = (payload) => {
+      if (!payload) return;
+      const { documentId, content: newContent } = payload;
+      if (documentId === document._id || documentId === document._id.toString()) {
+        setLocalDocument((prev) => ({ ...prev, content: newContent }));
+      }
+    };
+
     // Register listeners
     socket.on("documentUpdated", handleDocumentUpdated);
     socket.on("documentDeleted", handleDocumentDeleted);
     socket.on("participantsChanged", handleParticipantsChanged);
     socket.on("participantJoined", handleParticipantJoined);
     socket.on("documentShared", handleDocumentShared);
+    socket.on("receive-changes", handleReceiveChanges);
 
     // Cleanup listeners
     return () => {
@@ -231,6 +241,7 @@ const DocumentModal = ({
       socket.off("participantsChanged", handleParticipantsChanged);
       socket.off("participantJoined", handleParticipantJoined);
       socket.off("documentShared", handleDocumentShared);
+      socket.off("receive-changes", handleReceiveChanges);
 
       // Leave the document room
       socket.emit("leaveDocument", document._id);

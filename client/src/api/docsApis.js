@@ -17,7 +17,7 @@
 //we can use axios to make API requests to our backend server
 import axios from "axios";
 
-const API_URL = "http://localhost:5000/api/documents"; // adjust if needed
+const API_URL = "http://localhost:8080/api/documents"; // adjust if needed
 
 
 //      In this Code we have Create API-FUNCTION for All URL which is define in documentRoutes.js file
@@ -144,7 +144,7 @@ export const removeParticipant = async (documentId, userId) => {
 // Sharing via Email APIs
 // Base: /api/share
 // =====================
-const SHARE_API = "http://localhost:5000/api/share";
+const SHARE_API = "http://localhost:8080/api/share";
 
 // Send invitation by email (owner only)
 // URL : /api/share/share  [POST]
